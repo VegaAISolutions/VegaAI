@@ -1,11 +1,14 @@
 from datetime import datetime
+import os
 import requests
+import urllib3
+
 from Config import config
 # The main URL for the Telegram API with our bot's token
 from Bots.BaseBot import BaseBot
 from Bots.MLBot import MLBot
 from app.vegatrading.DataHelpers import DataHelper
-
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 class CurrencyBot(BaseBot):
     def __init__(self, name):
@@ -124,8 +127,8 @@ class CurrencyBot(BaseBot):
 
                 #business logic on which source to hit.
                 #TODO refactor later - 12/3/2017.
-                if coin == 'BTC':
-                    if media in ['coindesk','coindesk.com']:
+                if coin.strip().upper() == 'BTC':
+                    if media.strip() =='coindesk' or media.strip() == 'coindesk.com':
                         div = {'class': 'category-content'}
                         url = "https://www.coindesk.com/category/technology-news/bitcoin/"
                         #filter = ' '
@@ -133,12 +136,11 @@ class CurrencyBot(BaseBot):
                         div = {'class': 'articleItem'}
                         url= 'https://www.investing.com/crypto/bitcoin/'
                         #filter = 'bitcoin'
-                elif coin == 'ETH':
-                    if media in ['coindesk','coindesk.com']:
+                elif coin.strip().upper() == 'ETH' or media.strip() == 'coindesk.com':
+                    if media.strip() == 'coindesk':
                         div = {'class': 'category-content'}
                         url = "https://www.coindesk.com/category/technology-news/ethereum-technology-news/"
-                        #filter = 'ethereum'
-                    elif media in ['investing','investing.com']:
+                    elif media.strip() == 'investing' or media == 'investing.com':
                         div = {'class': 'articleItem'}
                         url = 'https://www.investing.com/crypto/ethereum/'
                         #filter = 'ethereum'
@@ -156,15 +158,59 @@ class CurrencyBot(BaseBot):
                     urls.append('https://cointelegraph.com/news/viral-cat-game-responsible-for-huge-portion-of-ethereum-transactions')
                     urls.append('http://www.zerohedge.com/news/2017-12-01/frustrated-investors-file-lawsuits-against-worlds-largest-ico')
                     urls.append('http://www.zerohedge.com/news/2017-12-01/signs-market-top-pole-dancing-instructor-now-bitcoin-guru')
-                s = ''
-                for item in urls:
-                    if not thirdParty:
-                        s = s + '<a href="' + item + '">' + item + '</a><br> '
-                    else:
-                        s = s + item + '\n '
-                bot_response = {'user_name': 'vegabot',
-                                'message': 'The top {} urls from {} for {} are {}'.format(top,media,coin, s)}
+                s = self.format_urls(urls, thirdParty)
+
+                bot_response_list = []
+                bot_response = {'user_name': 'vegabot','message': 'The top {} urls from {} for {} are:'.format(top, media, coin)}
+                bot_response_list.insert(0, bot_response)
+                for link in s:
+                    bot_response = {'user_name': 'vegabot','message': '{}'.format(link)}
+                    bot_response_list.append(bot_response)
+                return bot_response_list
+            elif action == 'GetTaxes':
+                taxkeywords = response['result']['parameters']['taxkeywords']
+                taxkeywords1 = response['result']['parameters']['taxkeywords1']
+                query = response['result']['resolvedQuery']
+                #Add scraper last
+                regs = ['regulations', 'crackdown']
+                forms8949 = ['8949', 'Form 8949 Instructions', 'Form 1099-K', 'Form 8949']
+                forms1099K = ['Form 1099-K', 'Form 1099-K Instructions', '1099-K', '1099']
+
+                if taxkeywords.strip() in regs or query.strip() in 'What are the new cryptocurrency regulations from the IRS?':
+                    urls = ['http://fortune.com/2017/12/21/bitcoin-tax/',
+                            'https://www.irs.gov/newsroom/irs-virtual-currency-guidance',
+                            'https://www.investopedia.com/university/definitive-bitcoin-tax-guide-dont-let-irs-snow-you/']
+
+                    s = self.format_urls(urls, thirdParty)
+                    bot_response = {'user_name':'vegabot', 'message': 'Articles related to crypto currency regulation {}'.format(s)}
+                elif taxkeywords.strip() in forms8949 or taxkeywords1.strip() in forms8949:
+                    url = ['https://www.irs.gov/instructions/i8949']
+                    s = self.format_urls(url,thirdParty=thirdParty)
+                    bot_response = {'user_name': 'vegabot','message': '8949 info {}'.format(s)}
+                elif taxkeywords.strip() in forms1099K or taxkeywords1.strip() in forms1099K:
+                    url = ['https://www.irs.gov/businesses/understanding-your-1099-k']
+                    s = self.format_urls(url,thirdParty=thirdParty)
+                    bot_response = {'user_name': 'vegabot', 'message': '1099-K info {}'.format(s)}
+                else:
+                    bot_response = {'user_name':'vegabot', 'message':'I did not quite understand your question, please ask again.'}
+
                 return bot_response
+            elif action == 'GetWaveFiveTrade':
+                bot_response_list = []
+                d = DataHelper('','','')
+                #urls = d.get_wavefive_articles(self)
+                urls = []
+                #formatted_urls = self.format_urls(urls, thirdParty)
+                formatted_urls = []
+                urls.append('http://www.wave5trade.com/education/w5t-monthly-webinar-february-2018/')
+                urls.append('http://www.wave5trade.com/education/fl-short-stocks-swing-trading-idea/')
+                formatted_urls = self.format_urls(urls, thirdParty)
+                bot_response = {'user_name': 'vegabot','message': 'The top {} urls from {} are:'.format('2', 'wave5')}
+                bot_response_list.insert(0,bot_response)
+                for link in formatted_urls:
+                    bot_response = {'user_name': 'vegabot','message':'{}'.format(link)}
+                    bot_response_list.append(bot_response)
+                return bot_response_list
             else:
                 coin = self.parse_coin_data(message)
                 mlbot = MLBot('Prediction Bot')
@@ -179,6 +225,14 @@ class CurrencyBot(BaseBot):
             bot_response = {'user_name': 'vegabot','message': '{}, please enter a valid query.'.format(user_name)}
             return bot_response
 
+    def format_urls(self,urls, thirdParty):
+        s = []
+        for item in urls:
+            if not thirdParty:
+                s.append('<a href="' + item + '">' + item + '</a><br> ')
+            else:
+                s.append(item + '\n ')
+        return s
     def run(self, message, thirdParty=True):
         """Receive a message, handle it, and send a response"""
         try:
@@ -186,7 +240,11 @@ class CurrencyBot(BaseBot):
             if message != None and message != '/start' and message != '':
                 print(chat_id)
                 response = self.get_response_action(message, thirdParty=thirdParty,user_name=user)
-                self.send_message(response['message'], chat_id)
+                if type(response) is list or type(response) is tuple:
+                    for msg in response:
+                        self.send_message(msg['message'], chat_id)
+                else:
+                    self.send_message(response['message'], chat_id)
             else:
                 self.send_message('Welcome {}, please ask me questions related to crypto!'.format(user), chat_id)
         except Exception as e:

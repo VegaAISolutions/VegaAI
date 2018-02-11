@@ -12,7 +12,9 @@ from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from werkzeug.utils import secure_filename
-from Config.config import reports_db, uploads, taxreport_base
+
+from Bots.currencybot import CurrencyBot
+from Config.config import reports_db, uploads, downloads, taxreport_base
 
 engine = create_engine('sqlite:///{}CryptoData.db'.format(reports_db), echo=True)
 metadata = MetaData(bind=engine)
@@ -74,9 +76,40 @@ def process_txnfiles(session):
         except Exception as e:
             print(e)
 
+def process_pdfs(directory, downloads):
+    for f in os.listdir(directory):
+        #if f.endswith('.pdf'):
+            create_irs_1099k_csv(directory+f,downloads)
+
+
+def messageReceived():
+    print('message was received!!!')
+
+@socketio.on('userevent')
+def handle_my_custom_event(jsoninput):
+    print('received my event: ' + str(jsoninput))
+    cbot = CurrencyBot('Vega Currency Bot')
+    bot_response = {}
+    if 'data' in jsoninput != None and jsoninput['data'] == 'User Connected':
+        bot_response = {'user_name': 'vegabot',
+                        'message': 'Welcome to the Vega Interactive demo, please enter a user name and type a question to proceed!'}
+        socketio.emit('vbotresponse', jsoninput, callback=messageReceived)
+        socketio.emit('vbotresponse', bot_response)
+    elif 'message' in jsoninput != None and jsoninput['message'] != '':
+        bot_response = {'user_name': 'vegabot', 'message': 'Please wait a moment while I process your request.....'}
+        socketio.emit('vbotresponse', bot_response, callback=messageReceived)
+        socketio.sleep(1)
+        bot_response = cbot.get_response_action(jsoninput['message'], jsoninput['user_name'])
+        if type(bot_response) is list or type(bot_response) is tuple:
+            for msg in bot_response:
+                socketio.emit('vbotresponse', msg, callback=messageReceived)
+        else:
+           socketio.emit('vbotresponse', jsoninput, callback=messageReceived)
+           socketio.emit('vbotresponse', bot_response)
+    #reports(jsoninput)
 # Handle the transactions and estimated taxes
 @app.route('/reports', methods=['GET', 'POST'])
-def reports(taxyear=2017):
+def reports(request=request,taxyear=2017):
     Session = sessionmaker(bind=engine)
     session = Session()
     try:
@@ -91,6 +124,7 @@ def reports(taxyear=2017):
             process_txnfiles(session)
             create_irs_csv(session,taxyear)
             create_irs_form(session,taxyear)
+            process_pdfs(uploads, downloads)
 
         query = session.query(Transactions)
         txn_history = pd.read_sql(query.statement, query.session.bind, index_col=None)
@@ -142,24 +176,33 @@ def reports(taxyear=2017):
         taxes['Short Term Gains/Loss'] = taxes['Short_Term_Gains'].map('${:,.2f}'.format).astype(str)
         taxes['Short Term Tax'] = taxes['Short_Term_Tax'].map('${:,.2f}'.format).astype(str)
         taxes['Total Estimate'] = taxes['Total_Estimate'].map('${:,.2f}'.format).astype(str)
-        taxes = taxes[
-            ['Long Term Gains/Loss', 'Long Term Tax', 'Short Term Gains/Loss', 'Short Term Tax', 'Total Estimate']]
+        taxes = taxes[['Long Term Gains/Loss', 'Long Term Tax', 'Short Term Gains/Loss', 'Short Term Tax', 'Total Estimate']]
 
         filelist = os.listdir(uploads)
 
         return render_template('./Reports.html',
                                tables=[txn_history.to_html(classes='table table-hover table-striped'),
-                                       taxes.to_html(classes='table table-hover table-striped')],list=[filelist],
+                                       taxes.to_html(classes='table table-hover table-striped')],list=filelist,
                                titles=['Estimated Taxes', 'Transaction History'])
+    except Exception as e:
+        print(e)
     finally:
         session.close()
 
 @app.route('/download', methods=['GET'])
 def download():
     try:
-        return send_file('{}2017_8949.csv'.format(taxreport_base), as_attachment=True)
+        return send_file('{}2017_8949.csv'.format(downloads), as_attachment=True)
     except Exception as e:
         print(e)
+
+@app.route('/download2', methods=['GET'])
+def download2():
+    try:
+        return send_file('{}f1099k_2018.csv'.format(downloads), as_attachment=True)
+    except Exception as e:
+        print(e)
+
 
 @app.route("/sendfile", methods=["POST"])
 def send_file2():
@@ -253,7 +296,7 @@ def create_irs_form(session,taxYear=2017):
     newObject.close()
 
 def create_irs_csv(session,taxYear=2017):
-    with open('2017_8949.csv', 'w', newline='') as csvData:
+    with open('{}2017_8949.csv'.format(downloads), 'w', newline='') as csvData:
         fieldnames = ['Description (a)', 'Date Acquired(b)', 'Date Sold (c)', 'Proceeds (d)', 'Cost Basis(e)',
                       'Adjustment Code (f)', 'Adjustment amount(g)', 'Gain or loss(h)', 'Term']
         csvWriter = csv.DictWriter(csvData, fieldnames=fieldnames)
@@ -276,6 +319,46 @@ def create_irs_csv(session,taxYear=2017):
                                 'Cost Basis(e)': str(row.Cost),
                                 'Gain or loss(h)': str(gainloss),
                                 'Term': term})
+
+def create_irs_1099k_csv(sourcefile, destination):
+    try:
+        with open(sourcefile, 'rb') as pdf:
+            input = PdfFileReader(pdf)
+
+            # get the data from page 3 (index 2)
+            page = 3
+            pindex = page - 1
+            page = input.getPage(pindex)
+
+            d = input.getFormTextFields()
+            print(input.getFormTextFields())
+            filer = d['f2_1[0]']
+            payee = d['f2_2[0]']
+            gross_amt = float(d['f2_9[0]'])
+            cards_not_present = int(d['f2_10[0]'])
+            payment_transactions = int(d['f2_12[0]'])
+            fed_income_tax_held = float(d['f2_13[0]'])
+            state_income_tax_held_1 = float(d['f2_30[0]'])
+            state_income_tax_held_2 = float(d['f2_31[0]'])
+            state_income_total = state_income_tax_held_1 + state_income_tax_held_2
+            net = gross_amt - fed_income_tax_held - state_income_total
+
+        with open('{}f1099k_2018.csv'.format(destination), 'w', newline='') as csvData:
+            fieldnames = ['Filer','Payee','Gross Amount', 'Cards Not Present', 'Payments', 'Federal Income Tax With Held',
+                          'State Income Tax With Held', 'Net']
+            csvWriter = csv.DictWriter(csvData, fieldnames=fieldnames)
+            csvWriter.writeheader()
+            row = {fieldnames[0]: filer,
+                   fieldnames[1]: payee,
+                   fieldnames[2]: gross_amt,
+                   fieldnames[3]: cards_not_present,
+                   fieldnames[4]: payment_transactions,
+                   fieldnames[5]: fed_income_tax_held,
+                   fieldnames[6]: state_income_total,
+                   fieldnames[7]: net}
+            csvWriter.writerow(row)
+    except Exception as e:
+        print(e)
 
 if __name__ == '__main__':
     socketio.run(app, host='127.0.0.1', port=5000, debug=False)

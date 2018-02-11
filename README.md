@@ -49,6 +49,28 @@ and to interact with a AI bot. To run this demo locally you will need to
       the coin you asked it.        
    8. Disclaimer, this is just a demo and you should not share these values with anyone. 
 
+#Docker
+If you are using Windows 10 Home, you will have to use the Quickstart terminal which is a work around for not having Windows 10 Pro
+Reference: https://www.dedoimedo.com/computers/docker-windows-10-intro.html
+
+    navigate to the taxreport directory:
+    C\:VegaIS\app\taxreports
+    if using quickstart terminal it is cd c/VegaIS/app/taxreports
+
+    docker build -t treport:latest .
+    docker run -d -p 5000:5000 treport
+
+    C\:VegaIS\app\vegatrading
+    if using quickstart terminal it is cd c/VegaIS/app/vegatrading
+    
+    docker build -t vtrade .
+    docker run -d -p 5001:5001 vtrade
+    
+    If you get an error like this:
+    Login with your Docker ID to push and pull images from Docker Hub. If you don't have a Docker ID, head over to https://hub.docker.com to create one.
+    
+    type docker login and enter your username. 
+
 #Stand Alone command line
 #make sure to run 
       pip install -r C:\VegaIS\requirements.txt

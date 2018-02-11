@@ -79,8 +79,8 @@ class MLBot(BaseBot):
         #use the close price instead
         b_market = b_market[['Date','Close']]
 
-        start_date = '2017-12-05'
-        split_date = '2017-12-09'
+        start_date = '2018-02-01'
+        split_date = '2018-12-08'
         #split_date = datetime.today() - timedelta(days=1)
         training_set = b_market[b_market['Date'] >= start_date]
         training_set = training_set[training_set['Date']<= split_date]

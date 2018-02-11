@@ -219,3 +219,24 @@ class DataHelper(BaseHelper):
             print(a['href'])
 
         return list
+
+    #TODO: refactor later, this is a quick method
+    def get_wavefive_articles(self, top=2):
+        base_url = "http://www.wave5trade.com/blog/"
+        response = requests.get(base_url)
+        page = BeautifulSoup(response.content, "html.parser")
+        list = []
+
+        data = page.find_all('a', href=True)
+        count = 0
+
+        for div in data:
+            links = div.findAll('a')
+            for a in links:
+                if count <= top:
+                   url = str(a['href'])
+                   list.append(url)
+                count+=1
+            #print(a['href'])
+
+        return list

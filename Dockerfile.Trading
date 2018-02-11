@@ -1,0 +1,23 @@
+FROM ubuntu:16.04
+ENV TERM xterm
+RUN apt update -y
+RUN apt -y install locales
+RUN locale-gen en_US.UTF-8
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+ENV PYTHONPATH /VegaIS
+RUN apt install -y git python3-setuptools python3 build-essential sqlite3 libsqlite3-dev bcrypt libffi-dev libssl-dev python3-dev
+RUN easy_install3 pip
+RUN pip3 install --upgrade pip setuptools
+COPY ./app/vegatrading/requirements.txt /VegaIS/requirements.txt 
+RUN pip3 install -r /VegaIS/requirements.txt
+COPY ./app/vegatrading/trading.py /VegaIS/trading.py
+COPY ./app/vegatrading /VegaIS/app/vegatrading
+COPY ./Config/__init__.py /VegaIS/Config/__init__.py
+COPY ./Config/config.docker.py /VegaIS/Config/config.py
+COPY ./Bots /VegaIS/Bots
+WORKDIR /VegaIS
+ENTRYPOINT ["python3"]
+CMD ["trading.py"]
+EXPOSE 5001/tcp
