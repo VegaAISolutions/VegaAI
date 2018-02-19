@@ -3,9 +3,10 @@ import os
 from datetime import datetime
 
 import pandas as pd
+import numpy as np
 from PyPDF2 import PdfFileReader, PdfFileWriter
 from PyPDF2.generic import NameObject, BooleanObject
-from flask import Flask, render_template, send_file, jsonify
+from flask import Flask, render_template, send_file, jsonify, url_for, redirect
 from flask import request
 from flask_socketio import SocketIO
 from sqlalchemy import create_engine, MetaData, Table
@@ -15,6 +16,7 @@ from werkzeug.utils import secure_filename
 
 from Bots.currencybot import CurrencyBot
 from Config.config import reports_db, uploads, downloads, taxreport_base
+from app.taxreports.fifocalc import *
 
 engine = create_engine('sqlite:///{}CryptoData.db'.format(reports_db), echo=True)
 metadata = MetaData(bind=engine)
@@ -35,44 +37,47 @@ app.config['UPLOAD_FOLDER'] = uploads
 socketio = SocketIO(app)
 
 def process_txnfiles(session):
-    directory =  uploads
+    fieldnames = ['Date', 'DateSold', 'Exchange', 'Action', 'Coin', 'Volume', 'Price', 'Fees', 'Cost']
+    directory = uploads
     for f in os.listdir(directory):
         try:
-            with open(os.path.join(directory, f)) as csvDataFile:
-                csvReader = csv.DictReader(csvDataFile)
-                for row in csvReader:
-                    try:
-                        txn = Transactions()
-                        txn.Date = row['Date']
-                        txn.DateSold = row['DateSold']
-                        txn.Exchange = row['Exchange']
-                        txn.Action = row['Action']
-                        txn.Coin = row['Coin']
-                        txn.Volume = float(row['Volume'])
-                        txn.Price = float(row['Price'])
-                        txn.Fees = float(row['Fees'])
-                        txn.Cost = row['Cost']
+            if f.endswith(".csv"):
+                with open(os.path.join(directory, f)) as csvDataFile:
+                    csvReader = csv.DictReader(csvDataFile)
+                    for row in csvReader:
+                        try:
+                            txn = Transactions()
+                            txn.Id = row['Id']
+                            txn.Date = row['Date']
+                            txn.DateSold = row['DateSold']
+                            txn.Exchange = row['Exchange']
+                            txn.Action = row['Action']
+                            txn.Coin = row['Coin']
+                            txn.Volume = float(row['Volume'])
+                            txn.Price = float(row['Price'])
+                            txn.Fees = float(row['Fees'])
+                            txn.Cost = row['Cost']
 
-                        if txn.Action == 'BUY':
                             txn.Cost = (txn.Volume * txn.Price) + txn.Fees
                             txn.Cost = -txn.Cost
 
-                        # TODO: refactor this, I was having an issue with trying to update.
-                        t = session.query(Transactions).filter((Transactions.Date == txn.Date and
-                                                                Transactions.Exchange == txn.Exchange and Transactions.Action == txn.Action)).first()
-                        if t == None:
-                            session.add(txn)
-                            session.commit()
-                        else:
-                            currenttxn = session.query(Transactions).filter((Transactions.Date == txn.Date and
-                                                                               Transactions.Exchange == txn.Exchange and Transactions.Action == txn.Action)).first()
-                            session.delete(currenttxn)
-                            session.commit()
-                            session.add(txn)
-                            session.commit()
-                    except Exception as e:
-                        print(e)
-                        session.rollback()
+                            # TODO: refactor this, I was having an issue with trying to update.
+                            #t = session.query(Transactions).filter((Transactions.Date == txn.Date and Transactions.DateSold == txn.DateSold and Transactions.Exchange == txn.Exchange and Transactions.Action == txn.Action)).first()
+                            t = session.query(Transactions).filter(Transactions.Id == txn.Id).first()
+                            if t == None:
+                                session.add(txn)
+                                session.commit()
+                            else:
+                                #currenttxn = session.query(Transactions).filter((Transactions.Date == txn.Date and Transactions.DateSold == txn.DateSold and
+                                 #                                                      Transactions.Exchange == txn.Exchange and Transactions.Action == txn.Action)).first()
+
+                                session.delete(t)
+                                session.commit()
+                                session.add(txn)
+                                session.commit()
+                        except Exception as e:
+                            print(e)
+                            session.rollback()
         except Exception as e:
             print(e)
 
@@ -109,7 +114,13 @@ def handle_my_custom_event(jsoninput):
     #reports(jsoninput)
 # Handle the transactions and estimated taxes
 @app.route('/reports', methods=['GET', 'POST'])
-def reports(request=request,taxyear=2017):
+def reports(request=request,taxyear=2018):
+    taxoptions = [{'type':'FIFO'},{'type':'LIFO'}]
+    taxyearoptions = [{'year':2018}, {'year':2017}]
+    print('Accounting method selected was ', request.form.get('method_select'))
+    method = request.form.get('method_select')
+    if request.form.get('year_select') is not None:
+        taxyear = int(request.form.get('year_select'))
     Session = sessionmaker(bind=engine)
     session = Session()
     try:
@@ -146,7 +157,7 @@ def reports(request=request,taxyear=2017):
         # We have to figure out the cost basis and subtract it from the proceeds for each
         # date sold, basically if volume 2 then we really have two records with subtraction
         # from the previous day and then the day before that.
-        previous_ids_for_cost_basis = []
+        '''Refactored to use the fifo class
         for currentrow in session.query(Transactions):
             y = datetime.strptime(currentrow.Date, '%m/%d/%Y%H:%M:%S').year
             if currentrow.Action == 'SELL':
@@ -154,36 +165,41 @@ def reports(request=request,taxyear=2017):
                     taxobj.Short_Term_Gains += currentrow.Price + currentrow.Cost
                 else:
                     taxobj.Long_Term_Gains += currentrow.Cost
+        '''
 
-        taxobj.Long_Term_Tax = taxobj.Long_Term_Gains * .15
-        taxobj.Short_Term_Tax = taxobj.Short_Term_Gains * .28
+        taxobj.Short_Term_Gains, taxobj.Short_Term_Tax, \
+        taxobj.Long_Term_Gains, taxobj.Long_Term_Tax = calculate_gl_estimatedtaxes(session,current_tax_year=taxyear, method=method)
+
+        #taxobj.Long_Term_Tax = taxobj.Long_Term_Gains * .15
+        #taxobj.Short_Term_Tax = taxobj.Short_Term_Gains * .28
 
         taxobj.Total_Estimate = taxobj.Long_Term_Tax + taxobj.Short_Term_Tax
         if count == 0:
             session.add(taxobj)
             session.commit()
         else:
-            currenttaxes = session.query(Taxes).filter(Taxes.Year == 2017).first()
+            currenttaxes = session.query(Taxes).filter(Taxes.Year == taxyear).first()
             session.delete(currenttaxes)
             session.commit()
             session.add(taxobj)
             session.commit()
-        query = session.query(Taxes).filter(Taxes.Year == 2017)
+        query = session.query(Taxes).filter(Taxes.Year == taxyear)
         taxes = pd.read_sql(query.statement, session.bind, index_col=None)
 
+        taxes['Tax Year'] = taxyear
         taxes['Long Term Gains/Loss'] = taxes['Long_Term_Gains'].map('${:,.2f}'.format).astype(str)
         taxes['Long Term Tax'] = taxes['Long_Term_Tax'].map('${:,.2f}'.format).astype(str)
         taxes['Short Term Gains/Loss'] = taxes['Short_Term_Gains'].map('${:,.2f}'.format).astype(str)
         taxes['Short Term Tax'] = taxes['Short_Term_Tax'].map('${:,.2f}'.format).astype(str)
         taxes['Total Estimate'] = taxes['Total_Estimate'].map('${:,.2f}'.format).astype(str)
-        taxes = taxes[['Long Term Gains/Loss', 'Long Term Tax', 'Short Term Gains/Loss', 'Short Term Tax', 'Total Estimate']]
+        taxes = taxes[['Tax Year','Long Term Gains/Loss', 'Long Term Tax', 'Short Term Gains/Loss', 'Short Term Tax', 'Total Estimate']]
 
         filelist = os.listdir(uploads)
 
         return render_template('./Reports.html',
                                tables=[txn_history.to_html(classes='table table-hover table-striped'),
                                        taxes.to_html(classes='table table-hover table-striped')],list=filelist,
-                               titles=['Estimated Taxes', 'Transaction History'])
+                               titles=['Estimated Taxes', 'Transaction History'], data=taxoptions, taxyears=taxyearoptions)
     except Exception as e:
         print(e)
     finally:
@@ -232,6 +248,44 @@ def get_filenames():
     filenames = sorted(filenames, key=modify_time_sort)
     return_dict = dict(filenames=filenames)
     return jsonify(return_dict)
+
+@app.route("/delete_all", methods=["POST"])
+def delete_all():
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        try:
+            trans = session.query(Transactions).all()
+            for row in trans:
+                session.delete(row)
+                session.commit()
+        except Exception as e:
+            print(e)
+
+        try:
+            taxes = session.query(Taxes).all()
+            for trow in taxes:
+                session.delete(trow)
+                session.commit()
+        except Exception as e:
+            print(e)
+    except Exception as e:
+        print(e)
+    finally:
+        session.close()
+
+    try:
+        for f in os.listdir(uploads):
+            try:
+                path = os.path.join(uploads,f)
+                if os.path.isfile(path):
+                    os.remove(path)
+            except Exception as e:
+                print(e)
+    except Exception as e:
+        print(e)
+
+    return redirect(url_for('reports'))
 
 def create_irs_form(session,taxYear=2017):
     newFileName = '{}8929_2017_test.pdf'.format(taxreport_base)
@@ -360,5 +414,89 @@ def create_irs_1099k_csv(sourcefile, destination):
     except Exception as e:
         print(e)
 
+#FIFO calculation
+def calculate_gl_estimatedtaxes(session, current_tax_year=2018, method='FIFO'):
+    shortTermGains = 0
+    shortTermEstTaxes = 0
+    longTermGains = 0
+    longTermEstTaxes = 0
+
+    trades = []
+    #Handle short term for the current tax year
+    for row in session.query(Transactions).filter(Transactions.Action == "BUY"):
+        trade = Trade(row.Date, row.Volume, row.Price)
+        trades.append(trade)
+
+    for row in session.query(Transactions).filter(Transactions.Action == "SELL"):
+        date_acq_year = datetime.strptime(row.Date, '%m/%d/%Y%H:%M:%S').year
+        date_sold_year = datetime.strptime(row.DateSold, '%m/%d/%Y%H:%M:%S').year
+        if date_acq_year == current_tax_year and date_sold_year == current_tax_year:
+            # negatives will be equivalent to a sell
+            row.Volume = -row.Volume
+            trade = Trade(row.DateSold, row.Volume, row.Price)
+            trades.append(trade)
+
+    #Change this for our purposes
+    if trades is not None:
+        b = Isin('bond', 1, trades)
+        if method == 'FIFO':
+            fifotransactions = FifoAccount(b)
+            print(fifotransactions)
+
+            shortTermGains = fifotransactions.get_pnl()
+            shortTermEstTaxes = shortTermGains * .28
+        elif method == 'LIFO':
+            lifotransactions = LifoAccount(b)
+            print(lifotransactions)
+
+            shortTermGains = lifotransactions.get_pnl()
+            shortTermEstTaxes = shortTermGains * .28
+
+    #refactor later
+    #Calculate long term gains if they exist
+
+    trades = []
+    # Handle long term for the current tax year
+    for row in session.query(Transactions).filter(Transactions.Action == "BUY"):
+        trade = Trade(row.Date, row.Volume, row.Price)
+        trades.append(trade)
+
+    for row in session.query(Transactions).filter(Transactions.Action == "SELL"):
+        date_acq_year = datetime.strptime(row.Date, '%m/%d/%Y%H:%M:%S').year
+        date_sold_year = datetime.strptime(row.DateSold, '%m/%d/%Y%H:%M:%S').year
+
+        if date_acq_year < current_tax_year and date_sold_year == current_tax_year:
+            # negatives will be equivalent to a sell
+            row.Volume = -row.Volume
+            trade = Trade(row.DateSold, row.Volume, row.Price)
+            trades.append(trade)
+
+    if trades is not None:
+        b = Isin('bond', 1, trades)
+        if method == 'FIFO':
+            fifotransactions = FifoAccount(b)
+            print(fifotransactions)
+
+            longTermGains = fifotransactions.get_pnl()
+            longTermEstTaxes = longTermGains * .15
+        elif method == 'LIFO':
+            lifotransactions = LifoAccount(b)
+            print(lifotransactions)
+
+            longTermGains = lifotransactions.get_pnl()
+            longTermEstTaxes = longTermGains * .15
+
+    return shortTermGains, shortTermEstTaxes, longTermGains, longTermEstTaxes
+
+def load_transactions():
+    fieldnames = ['Date','DateSold','Exchange','Action','Coin','Volume','Price','Fees','Cost']
+
+
 if __name__ == '__main__':
+    '''sg, sest, lg, lest = calculate_gl_estimatedtaxes(session)
+    print(sg)
+    print(sest)
+    print(lg)
+    print(lest)
+    '''
     socketio.run(app, host='127.0.0.1', port=5000, debug=False)

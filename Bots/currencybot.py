@@ -23,7 +23,7 @@ class CurrencyBot(BaseBot):
         print(js)
         coin = ""
         try:
-            coin = js['result']['parameters']['coin2']
+            coin = js['result']['parameters']['coin2'].strip('/').strip('@').strip()
             if coin == "":
                 print("Coin was {}".format())
             return coin
@@ -37,7 +37,7 @@ class CurrencyBot(BaseBot):
     def receive_message(self, message):
         """Receive a raw message from Telegram"""
         try:
-            text = str(message["message"]["text"])
+            text = str(message["message"]["text"]).strip().strip('/').strip('@')
             chat_id = message['message']['chat']['id']
             user = message['message']['from']['first_name']
             return text, chat_id, user
@@ -60,7 +60,7 @@ class CurrencyBot(BaseBot):
         coin = self.parse_coin_data(message)
         data = DataHelper('quandl', '', config.quandl_key)
 
-        if coin == 'BTC':
+        if coin.upper() == 'BTC':
             # TODO, add more advanced analysis such as predicted price
             df = data.get_exchange_data_no_cache('BCHARTS/KRAKENUSD')
             open = df['Open'].tail(1).map('${:,.2f}'.format).astype(str)
@@ -237,7 +237,7 @@ class CurrencyBot(BaseBot):
         """Receive a message, handle it, and send a response"""
         try:
             message, chat_id, user = self.receive_message(message)
-            if message != None and message != '/start' and message != '':
+            if message != None and message != '/start' and message != 'start' and message != '':
                 print(chat_id)
                 response = self.get_response_action(message, thirdParty=thirdParty,user_name=user)
                 if type(response) is list or type(response) is tuple:

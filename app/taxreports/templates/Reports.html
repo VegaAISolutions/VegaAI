@@ -62,6 +62,29 @@
 </div>
 
 <div id="transactions" class="container">
+<form class="form-inline" method="POST" action="{{ url_for('reports') }}">
+  <div class="form-group">
+    <div class="input-group">
+        <span class="input-group-addon">Please select tax method</span>
+            <select name="method_select" class="selectpicker form-control">
+              {% for o in data %}
+              <option value="{{ o.type }}">{{ o.type }}</option>
+              {% endfor %}
+            </select>
+    </div>
+      <div class="input-group">
+        <span class="input-group-addon">Please select current tax year</span>
+            <select name="year_select" class="selectpicker form-control">
+              {% for o in taxyears %}
+              <option value="{{ o.year }}">{{ o.year }}</option>
+              {% endfor %}
+            </select>
+    </div>
+    <button type="submit" class="btn btn-default">Calculate Taxes</button>
+  </div>
+    <br>
+</form>
+
     <h1>Transaction History and Estimated Taxes</h1>
       {% for table in tables %}
         <div style="overflow-y:auto;" >
@@ -69,6 +92,11 @@
       {{ table|safe }}
         </div>
       {% endfor %}
+</div>
+<div class="form-group container">
+    <form class="form-group" action = "{{url_for('delete_all')}}" method = "POST" enctype = "multipart/form-data">
+         <button class="btn btn-primary" type = "submit">Start Over</button>
+      </form>
 </div>
 <div id="dfg" class="container" align="center">
 <iframe align="center" height="440" width="500" src="https://bot.dialogflow.com/7ef26772-4aa2-46a3-ab20-103675319526"></iframe>

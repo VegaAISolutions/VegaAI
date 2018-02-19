@@ -2,6 +2,7 @@ import datetime
 import time
 from datetime import datetime, timedelta
 # import matplotlib.pyplot as plt
+import Config.config as config
 import numpy as np
 import pandas as pd
 from keras.layers import Dense
@@ -79,8 +80,8 @@ class MLBot(BaseBot):
         #use the close price instead
         b_market = b_market[['Date','Close']]
 
-        start_date = '2018-02-01'
-        split_date = '2018-12-08'
+        start_date = config.dstart_date
+        split_date = config.dsplit_date
         #split_date = datetime.today() - timedelta(days=1)
         training_set = b_market[b_market['Date'] >= start_date]
         training_set = training_set[training_set['Date']<= split_date]
@@ -124,7 +125,7 @@ class MLBot(BaseBot):
         rnn.compile(optimizer='adam',loss='mean_squared_error')
 
         #Fit the RNN to the training set loaded earlier
-        rnn.fit(X_train, Y_train, batch_size=64, epochs=25)
+        rnn.fit(X_train, Y_train, batch_size=64, epochs=config.rnn_ephocs)
 
         #Now make a prediction
         real_price = test_set.iloc[:,1:2]
