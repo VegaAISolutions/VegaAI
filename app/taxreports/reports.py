@@ -436,9 +436,8 @@ def calculate_gl_estimatedtaxes(session, current_tax_year=2018, method='FIFO'):
             trade = Trade(row.DateSold, row.Volume, row.Price)
             trades.append(trade)
 
-    #Change this for our purposes
     if trades is not None:
-        b = Isin('bond', 1, trades)
+        b = Isin('bond', 1, trades, method)
         if method == 'FIFO':
             fifotransactions = FifoAccount(b)
             print(fifotransactions)
@@ -472,7 +471,7 @@ def calculate_gl_estimatedtaxes(session, current_tax_year=2018, method='FIFO'):
             trades.append(trade)
 
     if trades is not None:
-        b = Isin('bond', 1, trades)
+        b = Isin('bond', 1, trades, method)
         if method == 'FIFO':
             fifotransactions = FifoAccount(b)
             print(fifotransactions)
@@ -488,15 +487,32 @@ def calculate_gl_estimatedtaxes(session, current_tax_year=2018, method='FIFO'):
 
     return shortTermGains, shortTermEstTaxes, longTermGains, longTermEstTaxes
 
-def load_transactions():
-    fieldnames = ['Date','DateSold','Exchange','Action','Coin','Volume','Price','Fees','Cost']
+def create_directories():
+    try:
+        try:
+            dir = os.path.dirname(taxreport_base)
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+        except Exception as e:
+            print(e)
+
+        try:
+            dir = os.path.dirname(uploads)
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+        except Exception as e:
+            print(e)
+
+        try:
+            dir = os.path.dirname(downloads)
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+        except Exception as e:
+            print(e)
+    except Exception as e:
+        print(e)
 
 
 if __name__ == '__main__':
-    '''sg, sest, lg, lest = calculate_gl_estimatedtaxes(session)
-    print(sg)
-    print(sest)
-    print(lg)
-    print(lest)
-    '''
+    create_directories()
     socketio.run(app, host='127.0.0.1', port=5000, debug=False)

@@ -1,5 +1,4 @@
 '''
-Author: Ryan Schreck
 Date: 10/15/2017
 Description: Helper methods class related to retrieving from the block chain in crypto currencies like ETC, BitCoin etc.
 '''
@@ -153,10 +152,10 @@ class DataHelper(BaseHelper):
         dic = json.loads(soup.prettify())
 
         # create an empty DataFrame
-        df = pd.DataFrame(columns=["Ticker", "CurrentPriceUSD", "Volume24hUSD","MarketCapUSD","PC1h","PC24h","PC7d"],index=[])
+        df = pd.DataFrame(columns=["Name","Ticker", "CurrentPriceUSD", "Volume24hUSD","MarketCapUSD","PC1h","PC24h","PC7d"],index=[])
 
         for i in range(len(dic)):
-            df.loc[len(df)] = [dic[i]['symbol'], dic[i]['price_usd'], dic[i]['24h_volume_usd'], dic[i]['market_cap_usd']
+            df.loc[len(df)] = [dic[i]['name'],dic[i]['symbol'], dic[i]['price_usd'], dic[i]['24h_volume_usd'], dic[i]['market_cap_usd']
                                ,dic[i]['percent_change_1h'], dic[i]['percent_change_24h'], dic[i]['percent_change_7d']]
 
         df.sort_values(by=['Ticker'])
@@ -167,18 +166,21 @@ class DataHelper(BaseHelper):
         df.PC1h = pd.to_numeric(df.PC1h)
         df.PC24h = pd.to_numeric(df.PC24h)
         df.PC7d = pd.to_numeric(df.PC7d)
-        df = df[(df['Ticker'].isin(coins))]
+        if coins.__contains__('ALL') == False:
+            df = df[(df['Ticker'].isin(coins))]
 
-        df['CurrentPriceUSD'] = df['CurrentPriceUSD'].map('${:,.2f}'.format).astype(str)
-        df['Volume24hUSD'] = df['Volume24hUSD'].map('${:,.2f}'.format).astype(str)
-        df['MarketCapUSD'] = df['MarketCapUSD'].map('${:,.2f}'.format).astype(str)
+        df['Ticker'] = df['Name'] + ' (' + df['Ticker'] + ')'
+        df['Current Price USD'] = df['CurrentPriceUSD'].map('${:,.2f}'.format).astype(str)
+        df['Volume 24h USD'] = df['Volume24hUSD'].map('${:,.2f}'.format).astype(str)
+        df['Market Cap USD'] = df['MarketCapUSD'].map('${:,.2f}'.format).astype(str)
         df['PC1h'] = df['PC1h'].map('%{:,.2f}'.format).astype(str)
         df['PC24h'] = df['PC24h'].map('%{:,.2f}'.format).astype(str)
+        df['24h Percent Change'] = df['PC24h']
         df['PC7d'] = df['PC7d'].map('%{:,.2f}'.format).astype(str)
 
         #Add call to method that determines market status.
         #df['Status'] = 'Bull'
-        df = df[["Ticker", "CurrentPriceUSD", "Volume24hUSD","MarketCapUSD","PC1h","PC24h","PC7d"]]
+        df = df[["Ticker", "Current Price USD", "Volume 24h USD","Market Cap USD","PC1h","PC24h","24h Percent Change","PC7d"]]
         return df
 
     def merge_dfs_on_column(dataframes, labels, col):
@@ -240,3 +242,11 @@ class DataHelper(BaseHelper):
             #print(a['href'])
 
         return list
+
+    def get_prices_cryptocompare(self,from_coin,to_coin, market):
+        url = "https://min-api.cryptocompare.com/data/pricemultifull?fsyms={},DASH&tsyms={}&e=".format(from_coin,to_coin)
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, "html.parser")
+        dict = json.loads(soup.prettify())
+
+        return dict

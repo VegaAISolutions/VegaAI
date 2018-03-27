@@ -9,11 +9,16 @@ from Bots.BaseBot import BaseBot
 from Bots.MLBot import MLBot
 from app.vegatrading.DataHelpers import DataHelper
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import zmq
 
 class CurrencyBot(BaseBot):
     def __init__(self, name):
         self.name = name
         self.BASE_URL = "https://api.telegram.org/bot{}".format(config.telegram_bot_token)
+        self.c = zmq.Context()
+        print("Connecting to the mt4 server.")
+        self.socket = self.c.socket(zmq.REQ)
+        self.socket.connect("tcp://127.0.0.1:5557")
 
     def parse_coin_data(self, query):
         url = self.intent_url_template.format(query, datetime.now())
@@ -23,7 +28,7 @@ class CurrencyBot(BaseBot):
         print(js)
         coin = ""
         try:
-            coin = js['result']['parameters']['coin2'].strip('/').strip('@').strip()
+            coin = js['result']['parameters']['coin2'].strip('/').strip('@').strip('|').strip()
             if coin == "":
                 print("Coin was {}".format())
             return coin
@@ -100,12 +105,18 @@ class CurrencyBot(BaseBot):
             # For now return a status of a bull market.
             #TODO:  Need to pull short-term market status from investing.com
             elif action == "GetMarketStatus":
-                coin = self.parse_coin_data(message)
-                ml = MLBot('ML Bot')
 
-                nd, pt = ml.predict_coin(coin, unit='month', api='spec', model_type='random_forest')
-                bot_response = {'user_name': 'vegabot', 'message': pt}
-                return bot_response
+                coin = self.parse_coin_data(message)
+                #ml = MLBot('ML Bot')
+                urls = []
+                urls.append('https://www.tradingview.com/chart/cGDlSoxr/')
+                #nd, pt = ml.predict_coin(coin, unit='month', api='spec', model_type='random_forest')
+                pt = self.format_urls(urls,thirdParty)
+                bot_response_list = []
+                for link in pt:
+                    bot_response = {'user_name': 'vegabot', 'message': '{}'.format(link)}
+                    bot_response_list.append(bot_response)
+                return bot_response_list
 
             elif action == 'GetMediaInfo':
                 #TODO: work on the twitter data retrieval.
@@ -211,6 +222,26 @@ class CurrencyBot(BaseBot):
                     bot_response = {'user_name': 'vegabot','message':'{}'.format(link)}
                     bot_response_list.append(bot_response)
                 return bot_response_list
+            elif action == 'BuyAction':
+                default_msg = response['result']['fulfillment']['speech']
+                print(message)
+                self.socket.send_string(message, encoding='utf-8')
+                bot_response = {'user_name': 'vegabot', 'message': '{}, {}'.format(user_name, default_msg.strip('|'))}
+                return bot_response
+            elif action == 'SellAction':
+                default_msg = response['result']['fulfillment']['speech']
+                self.socket.send_string(message)
+                bot_response = {'user_name': 'vegabot', 'message': '{}, {}'.format(user_name, default_msg)}
+                return bot_response
+            elif action == 'IndicatorAction':
+                default_msg = response['result']['fulfillment']['speech']
+                self.socket.send_string('start vegabot',encoding='utf-8')
+
+                if self.socket.recv() != 'bot started':
+                    default_msg = 'There was an issue starting the bot'
+
+                bot_response = {'user_name': 'vegabot', 'message': '{}, {}'.format(user_name, default_msg)}
+                return bot_response
             else:
                 coin = self.parse_coin_data(message)
                 mlbot = MLBot('Prediction Bot')

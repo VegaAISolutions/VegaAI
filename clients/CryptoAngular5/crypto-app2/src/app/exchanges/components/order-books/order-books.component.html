@@ -1,0 +1,41 @@
+<div>
+  
+ 
+<table align="center">
+  <thead text-align="center" align="center">
+    <th align="center" text-align="center" colspan="2">
+      <h1>Order Book Data</h1> 
+  </th>
+    <th></th>
+  </thead>
+  <tbody>
+<tr align="center">
+  <th colspan="2" align="center">{{orderData.FromCoinName}} to {{orderData.ToCoinName}} Market Depth: {{orderData.Depth}} Exchange: {{orderData.Exchange}}</th>
+  <th></th>
+</tr>
+  
+
+<tr align="center">  
+  <th align="right" colspan="1">Asks</th>  
+  <th align="center" colspan="1">Bids</th>  
+</tr>
+<tr>
+    <td>
+        <tr *ngFor="let ask of orderData.Asks" text-align="left">                   
+            <td text-align="left">{{ask[0]}}</td>
+            <td text-align="left">{{ask[1]}}</td>                    
+        </tr>
+      </td>
+  <td>
+    <tr *ngFor="let bid of orderData.Bids" text-align="left">          
+        <td text-align="left">{{bid[0]}}</td>
+        <td text-align="left">{{bid[1]}}</td>            
+    </tr>
+  </td>
+ </tr>
+</tbody>
+<!-- <tfoot align="center"><tr><th colspan="2">
+  Data provided by Poloniex Public API
+</th><th></th></tr></tfoot> -->
+</table>
+</div>

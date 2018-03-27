@@ -1,0 +1,68 @@
+/* You can add global styles to this file, and also import other style files */
+body            { font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;}
+a, h1, h2       { color: #377ba8; }
+h1, h2          { margin: 0; }
+h1              { border-bottom: 2px solid #eee; }
+h2              { font-size: 1.2em; }
+table, th, td {
+    border: 0px solid black;
+    border-collapse: collapse;
+}
+th, td {
+    padding: 5px;
+    text-align: center;    
+}
+table.dataframe, .dataframe th, .dataframe td {
+  border: none;
+  border-bottom: 1px solid #C8C8C8;
+  border-collapse: collapse;
+  text-align:left;
+  padding: 10px;
+  margin-bottom: 40px;
+  font-size: 0.9em;
+
+}
+
+.male th {
+    background-color: #add8e6;
+    color: white;
+}
+
+.female th {
+    background-color: #77dd77;
+    color: white;
+}
+
+tr:nth-child(odd)		{ background-color:#eee; }
+tr:nth-child(even)	{ background-color:#fff; }
+
+tr:hover            { background-color: #ffff99;}
+
+div.msg_bbl {
+        background-color: #ddd;
+        padding: 5px 10px;
+        border-radius: 10px;
+        color: #555;
+        margin-bottom: 5px;
+      }
+
+.droparea {
+    width: 125px;
+    height: 125px;
+    border-style: solid;
+    border-width: 3px;
+    border-color: blue;
+    float: left;
+    line-height: 125px;
+    text-align: center;
+}
+
+.tablearea {
+    width: 200px;
+    min-height: 200px;
+    border-style: solid;
+    border-width: 1px;
+    border-color: gray;
+    float: left;
+    margin-left: 10px;
+}

@@ -36,6 +36,17 @@ def show_table(n=5):
                                                       exch.to_html(classes='table table-hover table-striped')],
                            titles=['Exchanges'])
 
+@app.route('/exchangedata')
+def exchange_data(exchanges=['KRACKEN', 'POL'],coins=['ALL']):
+    dh = DataHelper('', '', '')
+
+    #TODO: Modify this helper method to concats exchange data for each coin and the respective order book
+    current_exchange_data = dh.get_current_data(coins)
+
+    current_exchange_data = current_exchange_data[["Ticker","Market Cap USD", "Volume 24h USD", "Current Price USD", "24h Percent Change"]]
+    return render_template('ExchangeData.html', tables=[current_exchange_data.to_html(classes='table table-hover table-striped')],
+                           titles=['Overall Prices'])
+
 def messageReceived():
     print('message was received!!!')
 
@@ -85,5 +96,5 @@ if __name__ == '__main__':
                                                      config.telegram_webhook_url)) as response:
         html = response.read()
         print(html)
-    socketio.run(app, host='0.0.0.0', port=5001, debug=False)
+    socketio.run(app, host='127.0.0.1', port=5001, debug=False)
 

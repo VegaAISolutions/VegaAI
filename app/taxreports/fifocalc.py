@@ -33,9 +33,11 @@ class Trade():
 
 
 class Isin():
-    def __init__(self, isin, notinalPerQuantity, listOfTrades):
+    def __init__(self, isin, notinalPerQuantity, listOfTrades, method='FIFO'):
         self._isin = isin
         self._notinalPerQuantity = notinalPerQuantity
+        if method == 'LIFO':
+            self._listOfTrades = listOfTrades.reverse()
         self._listOfTrades = listOfTrades
 
     def mtm(self, trade):
@@ -85,10 +87,12 @@ class FifoAccount(transactionAccounting):
     def __init__(self, trades):
         transactionAccounting.__init__(self, trades)
         self._deque = deque()
+        #Make sure to append the buys first
         for trade in self._trades:
             if trade.quantity >= 0:
                 self.buy(trade)
-            else:
+        for trade in self._trades:
+            if trade.quantity <= 0:
                 self.sell(trade)
 
     def buy(self, trade):
@@ -145,10 +149,13 @@ class LifoAccount(transactionAccounting):
         transactionAccounting.__init__(self, trades)
         #reverse the collection
         self._deque = deque()
-        for trade in self._trades.reverse():
+        # Make sure to append the buys first
+        for trade in self._trades:
             if trade.quantity >= 0:
                 self.buy(trade)
-            else:
+
+        for trade in self._trades:
+            if trade.quantity <= 0:
                 self.sell(trade)
 
     def buy(self, trade):
@@ -165,26 +172,30 @@ class LifoAccount(transactionAccounting):
         trade.printT()
         sellQuant = -trade.quantity
         while (sellQuant > 0):
-            lastTrade = self._deque.popleft()
-            price = lastTrade.price
-            quantity = lastTrade.quantity
-            print('Cancel trade:')
-            lastTrade.printT()
-            if sellQuant >= quantity:
-                self._pnl += -(price - trade.price) * quantity * self._notinalPerQuantity
-                self._quantity -= quantity
-                self._bookvalue -= price * quantity * self._notinalPerQuantity
-                sellQuant -= quantity
-            else:
-                # from IPython.core.debugger import Tracer; Tracer()()
-                self._pnl += -(price - trade.price) * sellQuant * self._notinalPerQuantity
-                self._quantity -= sellQuant
-                self._bookvalue -= price * sellQuant * self._notinalPerQuantity
-                lastTrade.quantity -= sellQuant
-                self._deque.appendleft(lastTrade)
-                sellQuant = 0
-            self.printStat()
-            assert (self._quantity > 0)
+            try:
+                lastTrade = self._deque.popleft()
+                price = lastTrade.price
+                quantity = lastTrade.quantity
+                print('Cancel trade:')
+                lastTrade.printT()
+                if sellQuant >= quantity:
+                    self._pnl += -(price - trade.price) * quantity * self._notinalPerQuantity
+                    self._quantity -= quantity
+                    self._bookvalue -= price * quantity * self._notinalPerQuantity
+                    sellQuant -= quantity
+                else:
+                    # from IPython.core.debugger import Tracer; Tracer()()
+                    self._pnl += -(price - trade.price) * sellQuant * self._notinalPerQuantity
+                    self._quantity -= sellQuant
+                    self._bookvalue -= price * sellQuant * self._notinalPerQuantity
+                    lastTrade.quantity -= sellQuant
+                    self._deque.appendleft(lastTrade)
+                    sellQuant = 0
+                self.printStat()
+                assert (self._quantity > 0)
+            except Exception as e:
+                print(e)
+                break
 
     def get_pnl(self):
         return self._pnl
