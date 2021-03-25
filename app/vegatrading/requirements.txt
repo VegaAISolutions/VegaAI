@@ -126,7 +126,7 @@ python-socketio==1.8.3
 python-telegram-bot==9.0.0
 pytimeparse==1.1.7
 pytz==2017.3
-PyYAML==3.12
+PyYAML==5.4
 pyzmq==16.0.2
 Quandl==3.2.1
 quandl-fund-xlsx==0.1.3
