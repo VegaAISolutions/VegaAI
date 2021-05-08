@@ -33,7 +33,7 @@ docutils==0.14
 durationpy==0.5
 enum-compat==0.0.2
 et-xmlfile==1.0.1
-eventlet==0.21.0
+eventlet==0.31.0
 Fabric==1.14.0
 feedfinder2==0.0.4
 feedparser==5.2.1
