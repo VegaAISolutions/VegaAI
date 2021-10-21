@@ -9,7 +9,7 @@ argcomplete==1.9.2
 asn1crypto==0.23.0
 aws==0.2.5
 awscli==1.11.185
-Babel==2.5.1
+Babel==2.9.1
 base58==0.2.4
 bcrypt==3.1.4
 beautifulsoup4==4.6.0
