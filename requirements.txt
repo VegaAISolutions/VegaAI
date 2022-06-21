@@ -87,7 +87,7 @@ nbformat==4.4.0
 ndg-httpsclient==0.4.3
 newspaper3k==0.2.5
 nltk==3.2.5
-numpy==1.13.3
+numpy==1.22.0
 oauthlib==2.0.6
 olefile==0.44
 openpyxl==2.4.9
