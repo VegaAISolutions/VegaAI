@@ -75,7 +75,7 @@ kappa==0.6.0
 Keras==2.1.1
 lambda-packages==0.19.0
 leather==0.3.3
-lxml==4.1.1
+lxml==4.9.1
 MarkupSafe==1.0
 matplotlib==2.1.0
 matplotlylib==0.1.0
